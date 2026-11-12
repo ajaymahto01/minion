@@ -18,14 +18,28 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: build (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      ARCH: ${{ matrix.arch }}
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
 
       - name: Build image
-        run: docker build -t "minion:${IMAGE_TAG}" -t minion:latest .
+        run: |
+          test "$(dpkg --print-architecture)" = "${ARCH}"
+          docker build -t "minion:${IMAGE_TAG}" -t minion:latest .
+          docker image inspect "minion:${IMAGE_TAG}" --format 'built for {{.Os}}/{{.Architecture}}'
 
       - name: Smoke test
         run: |
@@ -46,6 +60,7 @@ jobs:
             done
             echo "all tools present"
           '
+          sudo apt-get update -qq
           sudo apt-get install -y -qq sshpass >/dev/null
           sshpass -p minion ssh -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             minion@127.0.0.1 'whoami && sudo -n true && go version'
@@ -53,16 +68,16 @@ jobs:
 
       - name: Export image
         run: |
-          docker save "minion:${IMAGE_TAG}" | gzip > "minion-${IMAGE_TAG}.tar.gz"
-          sha256sum "minion-${IMAGE_TAG}.tar.gz" | tee "minion-${IMAGE_TAG}.tar.gz.sha256"
-          ls -lh "minion-${IMAGE_TAG}.tar.gz"
+          docker save "minion:${IMAGE_TAG}" | gzip > "minion-${IMAGE_TAG}-${ARCH}.tar.gz"
+          sha256sum "minion-${IMAGE_TAG}-${ARCH}.tar.gz" | tee "minion-${IMAGE_TAG}-${ARCH}.tar.gz.sha256"
+          ls -lh "minion-${IMAGE_TAG}-${ARCH}.tar.gz"
 
       - name: Upload image tarball
         uses: actions/upload-artifact@v4
         with:
-          name: minion-${{ env.IMAGE_TAG }}
+          name: minion-${{ env.IMAGE_TAG }}-${{ matrix.arch }}
           path: |
-            minion-${{ env.IMAGE_TAG }}.tar.gz
-            minion-${{ env.IMAGE_TAG }}.tar.gz.sha256
+            minion-${{ env.IMAGE_TAG }}-${{ matrix.arch }}.tar.gz
+            minion-${{ env.IMAGE_TAG }}-${{ matrix.arch }}.tar.gz.sha256
           compression-level: 0
           retention-days: 7

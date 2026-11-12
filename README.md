@@ -21,6 +21,13 @@ Useful build args:
 
 For a different CPU architecture than the build machine, add e.g. `--platform linux/amd64`.
 
+### Prebuilt tarballs
+
+The GitHub Actions workflow in this repo builds and tests the image for both
+`amd64` (Intel/AMD) and `arm64` (ARM) and attaches `minion-<tag>-<arch>.tar.gz`
+to each run under Actions > Build minion image > Artifacts. Pick the one that
+matches the CPU of the Docker host (`uname -m`: `x86_64` = amd64, `aarch64` = arm64).
+
 ## 2. Carry it into the air-gap
 
 ```bash
