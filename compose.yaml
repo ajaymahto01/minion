@@ -1,0 +1,26 @@
+services:
+  testbed:
+    image: minion:latest
+    build: .
+    container_name: testbed
+    hostname: testbed
+    restart: unless-stopped
+    ports:
+      - "2222:22"
+    environment:
+      # Paste your public key here, or mount a file at /authorized_keys instead.
+      SSH_AUTHORIZED_KEYS: ""
+      # Password defaults to "minion". Set a different one, or "" for key-only login.
+      # SSH_PASSWORD: "change-me"
+    cap_add:
+      - NET_ADMIN     # tc, iptables, ip link/route changes
+      - NET_RAW       # ping, tcpdump, nmap SYN scans
+      - SYS_PTRACE    # strace, ltrace
+    volumes:
+      - hostkeys:/etc/ssh/hostkeys   # stable host identity across recreations
+      - home:/home/minion            # your files, shell history, kubeconfig
+      # - ./authorized_keys:/authorized_keys:ro
+
+volumes:
+  hostkeys:
+  home:
