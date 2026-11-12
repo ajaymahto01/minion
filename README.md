@@ -49,7 +49,7 @@ docker run -d --name testbed --hostname testbed \
 ssh -p 2222 minion@<docker-host>      # password: minion
 ```
 
-Or edit `compose.yaml` and run `docker compose up -d` (it also works with
+Or edit `docker-compose.yaml` and run `docker compose up -d` (it also works with
 `docker compose up -d --no-build` once the image is loaded).
 
 ### Login options
