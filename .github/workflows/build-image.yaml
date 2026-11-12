@@ -1,0 +1,68 @@
+name: Build minion image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - entrypoint.sh
+      - .github/workflows/build-image.yaml
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Image tag
+        default: "1.0"
+
+env:
+  IMAGE_TAG: ${{ inputs.tag || '1.0' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t "minion:${IMAGE_TAG}" -t minion:latest .
+
+      - name: Smoke test
+        run: |
+          docker run -d --name minion -p 2222:22 "minion:${IMAGE_TAG}"
+          sleep 5
+          docker logs minion
+          docker exec minion sh -c '
+            set -e
+            ss -ltn | grep -q ":22 "
+            id minion
+            go version
+            kubectl version --client
+            helm version --short
+            yq --version
+            grpcurl --version
+            for t in curl dig tcpdump nmap mtr iperf3 socat strace htop ab wrk stress-ng fio psql mariadb redis-cli kcat jq git python3 gcc; do
+              command -v "$t" >/dev/null || { echo "missing: $t"; exit 1; }
+            done
+            echo "all tools present"
+          '
+          sudo apt-get install -y -qq sshpass >/dev/null
+          sshpass -p minion ssh -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            minion@127.0.0.1 'whoami && sudo -n true && go version'
+          docker rm -f minion
+
+      - name: Export image
+        run: |
+          docker save "minion:${IMAGE_TAG}" | gzip > "minion-${IMAGE_TAG}.tar.gz"
+          sha256sum "minion-${IMAGE_TAG}.tar.gz" | tee "minion-${IMAGE_TAG}.tar.gz.sha256"
+          ls -lh "minion-${IMAGE_TAG}.tar.gz"
+
+      - name: Upload image tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: minion-${{ env.IMAGE_TAG }}
+          path: |
+            minion-${{ env.IMAGE_TAG }}.tar.gz
+            minion-${{ env.IMAGE_TAG }}.tar.gz.sha256
+          compression-level: 0
+          retention-days: 7
